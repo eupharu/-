@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>課題曲①　変拍子メトロノーム</title>
+  <style>
+    body { font-family: sans-serif; text-align: center; padding: 20px; }
+    .beat { display: inline-block; width: 30px; height: 30px; margin: 5px; border-radius: 50%; background: #ccc; transition: 0.1s; }
+    .strong { background: red !important; }
+    .active { transform: scale(1.5); }
+    label { display: block; margin-top: 10px; }
+    .custom-radio {
+      display: inline-flex;
+      align-items: center;
+      margin: 5px 15px;
+      cursor: pointer;
+    }
+    .custom-radio input {
+      display: none;
+    }
+    .circle {
+      width: 20px;
+      height: 20px;
+      border: 2px solid black;
+      border-radius: 50%;
+      margin-right: 8px;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .circle::after {
+      content: '';
+      width: 10px;
+      height: 10px;
+      background: black;
+      border-radius: 50%;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+    .custom-radio input:checked + .circle::after {
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+  <h1>課題曲①　変拍子メトロノーム</h1>
+  <style>
+  @font-face {
+    font-family: 'Bravura';
+    src: url('Bravura.otf') format('opentype');
+  }
+  .music {
+    font-family: 'Bravura';
+    font-size: 32px;
+    display: inline-block;
+    vertical-align: middle;
+  }
+</style>
+<p><img src="images.png" alt="付点四分音符" height="40"> = <input type="number" id="tempo" value="118"> BPM</label>
+  <label><input type="checkbox" id="muteWeak"> 弱拍をミュート</label>
+
+  <div>
+    <span>リズムパターン:</span><br>
+    <label class="custom-radio">
+      <input type="radio" name="rhythm" value="6_8_3_4" checked>
+      <span class="circle"></span>6/8 + 3/4
+    </label>
+    <label class="custom-radio">
+      <input type="radio" name="rhythm" value="5_8_2_4">
+      <span class="circle"></span>5/8 + 2/4
+    </label>
+  </div>
+
+  <div>
+    <span>音の種類:</span><br>
+    <label class="custom-radio">
+      <input type="radio" name="sound" value="default" checked>
+      <span class="circle"></span>標準音
+    </label>
+    <label class="custom-radio">
+      <input type="radio" name="sound" value="high">
+      <span class="circle"></span>高音
+    </label>
+  </div>
+
+  <button id="startStop">スタート</button>
+  <div id="beats"></div>
+
+  <script>
+    window.addEventListener('DOMContentLoaded', () => {
+      setupBeats();
+    });
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const beatDiv = document.getElementById('beats');
+    const tempoInput = document.getElementById('tempo');
+    const muteWeakInput = document.getElementById('muteWeak');
+    let beatElems = [];
+    let currentBeat = 0;
+    let intervalID = null;
+    let strongBeats = [];
+    let totalBeats = 0;
+
+    function getSelectedRhythmValue() {
+      const radios = document.getElementsByName('rhythm');
+      for (const radio of radios) {
+        if (radio.checked) return radio.value;
+      }
+      return "6_8_3_4";
+    }
+
+    function getSelectedSoundType() {
+      const radios = document.getElementsByName('sound');
+      for (const radio of radios) {
+        if (radio.checked) return radio.value;
+      }
+      return "default";
+    }
+
+    function setupBeats() {
+      const pattern = getSelectedRhythmValue();
+      if (pattern === "6_8_3_4") {
+        strongBeats = [0, 3, 6, 8, 10];
+        totalBeats = 12;
+      } else if (pattern === "5_8_2_4") {
+        strongBeats = [0, 3, 5, 7];
+        totalBeats = 9;
+      }
+      beatDiv.innerHTML = '';
+      beatElems = [];
+      for (let i = 0; i < totalBeats; i++) {
+        const el = document.createElement('div');
+        el.className = 'beat';
+        if (strongBeats.includes(i)) el.classList.add('strong');
+        beatDiv.appendChild(el);
+        beatElems.push(el);
+      }
+      currentBeat = 0;
+      console.log('リズムパターン設定:', pattern, '強拍:', strongBeats);
+    }
+
+    function playClick(frequency) {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.frequency.value = frequency;
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      gain.gain.setValueAtTime(1, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
+      osc.start(audioCtx.currentTime);
+      osc.stop(audioCtx.currentTime + 0.1);
+    }
+
+    function getFrequency(isStrong) {
+      const type = getSelectedSoundType();
+      if (type === "high") {
+        return isStrong ? 1500 : 900;
+      } else {
+        return isStrong ? 1000 : 600;
+      }
+    }
+
+    function tick() {
+      const muteWeak = muteWeakInput.checked;
+      console.log('tick:', currentBeat, 'muteWeak:', muteWeak);
+      beatElems.forEach(el => el.classList.remove('active'));
+      const el = beatElems[currentBeat];
+      el.classList.add('active');
+      const isStrong = strongBeats.includes(currentBeat);
+      if (isStrong || !muteWeak) {
+        const freq = getFrequency(isStrong);
+        console.log('音を鳴らす: beat', currentBeat, 'frequency:', freq);
+        playClick(freq);
+      } else {
+        console.log('弱拍はミュート: beat', currentBeat);
+      }
+      currentBeat = (currentBeat + 1) % totalBeats;
+    }
+
+    function startMetronome() {
+      const bpm = parseFloat(tempoInput.value);
+      const eighthInterval = (60 / bpm) / 1.5 / 2 * 1000;
+      console.log('メトロノーム開始: bpm =', bpm, 'interval =', eighthInterval);
+      setupBeats();
+      intervalID = setInterval(tick, eighthInterval);
+    }
+
+    document.getElementById('startStop').onclick = () => {
+      if (intervalID) {
+        console.log('メトロノーム停止');
+        clearInterval(intervalID);
+        intervalID = null;
+        document.getElementById('startStop').textContent = 'スタート';
+      } else {
+        startMetronome();
+        document.getElementById('startStop').textContent = 'ストップ';
+      }
+    };
+
+    // 初期表示としてビートの見た目だけセットアップ（動作開始しない）
+    
+  </script>
+</body>
+</html>
